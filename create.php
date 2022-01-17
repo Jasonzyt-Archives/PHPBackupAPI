@@ -1,4 +1,5 @@
 <?php
+
 include "internal.php";
 header('Content-type: application/json');
 // Check Key
@@ -16,9 +17,9 @@ if ($_REQUEST["info"] != null) {
         exit(errorJson("Missing 'totalFiles' in argument 'info'"));
     }
     $id = generateBackupID();
-    $backup = new Backup($id, time(), $info["others"]);
+    $backup = new UploadingBackup($id, time(), $info["others"]);
     $backup->totalFiles = $info["totalFiles"];
-    $backup->writeToUploading();
+    $backup->write();
     exit(json_encode([
         "success" => true,
         "id" => $id,
