@@ -3,18 +3,12 @@
 include "config.php";
 ///////////////////////////////////// CONST /////////////////////////////////////
 $bakInfoFile = "_backup_info.json";
-$uploadingInfoFile = "_uploading_info.json";
 $bannedFiles = ["*.inc", "*.phtml", "*.module", "*.php?", "*.hphp", "*.ctp", "*.php", "*.phar",
-    "_bak_info.json", "_uploading_info.json"];
+    "_bak_info.json"];
 
 function getBackupInfoFileName(): string {
     global $bakInfoFile;
     return $bakInfoFile;
-}
-
-function getUploadingInfoFileName(): string {
-    global $uploadingInfoFile;
-    return $uploadingInfoFile;
 }
 
 function getBannedFiles(): array {
@@ -37,9 +31,19 @@ function getTimeLimit(): int {
     return $timeLimit;
 }
 
+function isDeleteAfterLimitExceeded(): bool {
+    global $deleteAfterLimitExceeded;
+    return $deleteAfterLimitExceeded;
+}
+
 function getMaxSize(): int {
     global $maxSize;
     return $maxSize;
+}
+
+function getMaxFileSize(): int {
+    global $maxFileSize;
+    return $maxFileSize;
 }
 
 function isAllowDownloadWithoutAccessKey(): bool {
@@ -54,17 +58,12 @@ function isAllowDownloadZip(): bool {
 
 ///////////////////////////////////// VARS //////////////////////////////////////
 $backups   = loadBackupList();
-$uploading = loadUploadingList();
 
 function getBackups(): array {
     global $backups;
     return $backups;
 }
 
-function getUploadingBackups(): array {
-    global $uploading;
-    return $uploading;
-}
 
 ///////////////////////////////////// UTILS /////////////////////////////////////
 
@@ -75,16 +74,11 @@ function checkKey($k): bool {
 function generateBackupID(): string {
     $time = strftime("%Y%m%d%H");
     $bytes = random_bytes(20);
-    return $time . '_' . bin2hex($bytes);
+    return $time . '_' . substr(bin2hex($bytes), 0, 6);
 }
 
-function getUploadingBackup($id): ?UploadingBackup {
-    foreach (getUploadingBackups() as $b) {
-        if ($b->id == $id) {
-            return $b;
-        }
-    }
-    return null;
+function getBackup($id): ?Backup {
+    return getBackups()[$id] ?? null;
 }
 
 function loadBackupList(): array {
@@ -95,21 +89,20 @@ function loadBackupList(): array {
         if (file_exists($infoFile)) {
             $content = file_get_contents($infoFile);
             $json = json_decode($content);
-            $result[] = Backup::fromJson($json);
-        }
-    }
-    return $result;
-}
-
-function loadUploadingList(): array {
-    $result = array();
-    $folders = glob(getBackupPath() . "*", GLOB_ONLYDIR);
-    foreach ($folders as $folder) {
-        $infoFile = $folder . "/" . getUploadingInfoFileName();
-        if (file_exists($infoFile)) {
-            $content = file_get_contents($infoFile);
-            $json = json_decode($content);
-            $result[] = UploadingBackup::fromJson($json);
+            $backup = Backup::fromJson($json);
+            if ($backup->isUploading && time() - $backup->lastOperationTime > getTimeLimit()) {
+                if (isDeleteAfterLimitExceeded()) {
+                    $backup->delete();
+                    continue;
+                }
+                else {
+                    $backup->isUploading = false;
+                    $backup->totalFiles = $backup->uploadedFiles;
+                    $backup->save();
+                }
+            }
+            $backup->size = getSizeOfDirectory($folder);
+            $result[$backup->id] = $backup;
         }
     }
     return $result;
@@ -144,6 +137,21 @@ function getSizeOfDirectory($path) {
     return $size;
 }
 
+function getTotalFilesOfDirectory($path): int {
+    $total = 0;
+    if (is_dir($path)) {
+        $files = glob($path . '/*');
+        foreach ($files as $file) {
+            if (is_dir($file)) {
+                $total += getTotalFilesOfDirectory($file);
+            } else {
+                $total += 1;
+            }
+        }
+    }
+    return $total;
+}
+
 function errorJson($str): string {
     return json_encode([
         "success" => false,
@@ -157,68 +165,70 @@ class Backup {
     public var int $timeStamp = 0;
     public var ?object $others = null;
     public var int $totalFiles = 0;
-
-    public function __construct($id, $time, $others) {
-        $this->id = $id;
-        $this->timeStamp = $time;
-        $this->others = $others;
-    }
+    public var int $uploadedFiles = 0;
+    public var int $size = 0;
+    public var int $lastOperationTime = 0;
+    public var bool $isUploading = false;
 
     public function delete() {
         $path = getBackupPath() . $this->id;
         deleteDirectory($path);
+        unset(getBackups()[$this->id]);
     }
 
-    public function size() {
+    public function save() {
         $path = getBackupPath() . $this->id;
-        return getSizeOfDirectory($path);
-    }
-
-    public function write() {
-        global $backupList;
-        $content = file_get_contents($backupList);
-        $json = json_decode($content);
-        $json[$this->id] = $this;
-        $content = json_encode($json);
-        file_put_contents($backupList, $content);
+        if (!file_exists($path)) {
+            mkdir($path);
+        }
+        $infoFile = $path . "/" . getBackupInfoFileName();
+        $json = null;
+        if ($this->isUploading) {
+            $json = json_encode(array(
+                "id" => $this->id,
+                "timeStamp" => $this->timeStamp,
+                "others" => $this->others,
+                "totalFiles" => $this->totalFiles,
+                "uploadedFiles" => $this->uploadedFiles,
+                "lastOperationTime" => $this->lastOperationTime,
+                "isUploading" => $this->isUploading
+            ));
+        } else {
+            $json = json_encode(array(
+                "id" => $this->id,
+                "timeStamp" => $this->timeStamp,
+                "others" => $this->others,
+                "totalFiles" => $this->totalFiles,
+                "isUploading" => $this->isUploading
+            ));
+        }
+        file_put_contents($infoFile, $json);
     }
 
     public static function fromJson($obj): Backup {
-        $backup = new Backup($obj["id"], $obj["timeStamp"], $obj["others"]);
-        $backup->totalFiles = $obj["totalFiles"];
+        $backup = new Backup();
+        $backup->id = $obj->id;
+        $backup->timeStamp = $obj->timeStamp;
+        $backup->others = $obj->others;
+        $backup->totalFiles = $obj->totalFiles;
+        $backup->isUploading = $obj->isUploading;
+        if ($backup->isUploading) {
+            $backup->uploadedFiles = $obj->uploadedFiles;
+            $backup->lastOperationTime = $obj->lastOperationTime;
+        }
         return $backup;
     }
 
-}
-
-class UploadingBackup extends Backup {
-    public var int $progress = 0;
-
-    public function __construct($id, $time, $others) {
-        parent::__construct($id, $time, $others);
-    }
-
-    public function checkTime(): bool {
-        global $timeLimit;
-        $time = time();
-        return $time - $this->timeStamp < $timeLimit;
-    }
-
-    public function delete() {
-        $path = getBackupPath() . $this->id;
-        deleteDirectory($path);
-    }
-
-    public function write() {
-        $json = json_encode($this);
-
-    }
-
-    public static function fromJson($obj): UploadingBackup {
-        $backup = new UploadingBackup($obj["id"], $obj["timeStamp"], $obj["others"]);
-        $backup->totalFiles = $obj["totalFiles"];
-        $backup->progress = $obj["progress"];
+    public static function create($totalFiles = 0, $others = null): Backup {
+        $backup = new Backup();
+        $backup->id = generateBackupID();
+        $backup->timeStamp = time();
+        $backup->others = $others;
+        $backup->totalFiles = $totalFiles;
+        $backup->lastOperationTime = $backup->timeStamp;
+        $backup->isUploading = true;
+        mkdir(getBackupPath() . $backup->id);
+        $backup->save();
         return $backup;
     }
-
 }
