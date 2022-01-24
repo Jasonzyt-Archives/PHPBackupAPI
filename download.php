@@ -2,7 +2,7 @@
 
 include "internal.php";
 
-if (isAllowDownloadWithoutAccessKey() && !checkKey($_REQUEST["key"])) {
+if (isAllowDownloadWithoutAccessKey() && !checkKey($_REQUEST["key"] ?? null)) {
     header('Content-type: application/json');
     exit(errorJson("The key is wrong"));
 }

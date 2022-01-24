@@ -1,10 +1,18 @@
 <?php
 
 include "config.php";
+
+// Check if the backup directory created
+if (!file_exists(getBackupPath())) {
+    mkdir(getBackupPath());
+}
+
 ///////////////////////////////////// CONST /////////////////////////////////////
 $bakInfoFile = "_backup_info.json";
 $bannedFiles = ["*.inc", "*.phtml", "*.module", "*.php?", "*.hphp", "*.ctp", "*.php", "*.phar",
-    "_bak_info.json"];
+    "_backup_info.json"];
+$ignoredFiles = ["_backup_info.json"];
+$apiVersion = "0.1.0";
 
 function getBackupInfoFileName(): string {
     global $bakInfoFile;
@@ -14,6 +22,11 @@ function getBackupInfoFileName(): string {
 function getBannedFiles(): array {
     global $bannedFiles;
     return $bannedFiles;
+}
+
+function getIgnoredFiles(): array {
+    global $ignoredFiles;
+    return $ignoredFiles;
 }
 
 function getAccessKey(): string {
@@ -32,8 +45,8 @@ function getTimeLimit(): int {
 }
 
 function isDeleteAfterLimitExceeded(): bool {
-    global $deleteAfterLimitExceeded;
-    return $deleteAfterLimitExceeded;
+    global $deleteAfterTimeLimitExceeded;
+    return $deleteAfterTimeLimitExceeded;
 }
 
 function getMaxSize(): int {
@@ -44,6 +57,11 @@ function getMaxSize(): int {
 function getMaxFileSize(): int {
     global $maxFileSize;
     return $maxFileSize;
+}
+
+function getTimeZone(): string {
+    global $timeZone;
+    return $timeZone;
 }
 
 function isAllowDownloadWithoutAccessKey(): bool {
@@ -57,9 +75,9 @@ function isAllowDownloadZip(): bool {
 }
 
 ///////////////////////////////////// VARS //////////////////////////////////////
-$backups   = loadBackupList();
+$backups = loadBackupList();
 
-function getBackups(): array {
+function getBackups(): ?array {
     global $backups;
     return $backups;
 }
@@ -72,13 +90,75 @@ function checkKey($k): bool {
 }
 
 function generateBackupID(): string {
-    $time = strftime("%Y%m%d%H");
+    date_default_timezone_set(getTimeZone());
+    $time = date("YmdH");
     $bytes = random_bytes(20);
     return $time . '_' . substr(bin2hex($bytes), 0, 6);
 }
 
 function getBackup($id): ?Backup {
     return getBackups()[$id] ?? null;
+}
+
+
+function fnmatchForWin($pattern, $string): bool {
+    $starStack = array();
+    $sstrStack = array();
+    $countStack = 0;
+    $ptnStart = strlen($pattern) - 1;
+    $strStart = strlen($string) - 1;
+    for (; 0 <= $strStart; $strStart--) {
+        $sc = $string[$strStart];
+        $pc = ($ptnStart < 0) ? '' : $pattern[$ptnStart];
+        if ($sc !== $pc) {
+            if ($pc === '*') {
+                while ($ptnStart > 0 && ($pc = $pattern[$ptnStart - 1]) === '*') {
+                    $ptnStart --;
+                }
+                if ($ptnStart > 0 && ($pc === $sc || $pc === '?')) {
+                    $starStack[$countStack] = $ptnStart;
+                    $sstrStack[$countStack] = $strStart;
+                    $countStack++;
+                    $ptnStart -= 2;
+                }
+            } else if ($pc === '?') {
+                $ptnStart --;
+            } else if ($countStack > 0) {
+                $countStack --;
+                $ptnStart = $starStack[$countStack];
+                $strStart = $sstrStack[$countStack];
+            } else {
+                return false;
+            }
+        } else {
+            $ptnStart --;
+        }
+    }
+    if ($ptnStart === -1) {
+        return true;
+    } else if ($ptnStart >= 0) {
+        while ($ptnStart > 0 && $pattern[$ptnStart] === '*') {
+            $ptnStart--;
+        }
+        if ($pattern[$ptnStart] === '*') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
+function fnmatchReal($pattern, $string): bool {
+    if (function_exists("fnmatch")) {
+        return fnmatchForWin($pattern, $string);
+    } else {
+        return fnmatch($pattern, $string);
+    }
+}
+
+function getFileName($path): string {
+    return substr($path, strlen(dirname($path)) + 1);
 }
 
 function loadBackupList(): array {
@@ -122,11 +202,23 @@ function deleteDirectory($path) {
     }
 }
 
-function getSizeOfDirectory($path) {
+function isIgnoredFile($fn): bool {
+    foreach (getIgnoredFiles() as $ignoredFile) {
+        if (fnmatchReal($ignoredFile, getFileName($fn))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function getSizeOfDirectory($path): int {
     $size = 0;
     if (is_dir($path)) {
         $files = glob($path . '/*');
         foreach ($files as $file) {
+            if (isIgnoredFile($file)) {
+                continue;
+            }
             if (is_dir($file)) {
                 $size += getSizeOfDirectory($file);
             } else {
@@ -142,6 +234,9 @@ function getTotalFilesOfDirectory($path): int {
     if (is_dir($path)) {
         $files = glob($path . '/*');
         foreach ($files as $file) {
+            if (isIgnoredFile($file)) {
+                continue;
+            }
             if (is_dir($file)) {
                 $total += getTotalFilesOfDirectory($file);
             } else {
@@ -161,19 +256,21 @@ function errorJson($str): string {
 
 class Backup {
 
-    public var string $id = "";
-    public var int $timeStamp = 0;
-    public var ?object $others = null;
-    public var int $totalFiles = 0;
-    public var int $uploadedFiles = 0;
-    public var int $size = 0;
-    public var int $lastOperationTime = 0;
-    public var bool $isUploading = false;
+    public string $id = "";
+    public int $timeStamp = 0;
+    public ?object $others = null;
+    public int $totalFiles = 0;
+    public int $uploadedFiles = 0;
+    public int $size = 0;
+    public int $lastOperationTime = 0;
+    public bool $isUploading = false;
 
     public function delete() {
         $path = getBackupPath() . $this->id;
         deleteDirectory($path);
-        unset(getBackups()[$this->id]);
+        if (getBackups()) {
+            unset(getBackups()[$this->id]);
+        }
     }
 
     public function save() {
@@ -182,6 +279,10 @@ class Backup {
             mkdir($path);
         }
         $infoFile = $path . "/" . getBackupInfoFileName();
+        file_put_contents($infoFile, $this->toJson());
+    }
+
+    public function toJson(): string {
         $json = null;
         if ($this->isUploading) {
             $json = json_encode(array(
@@ -202,7 +303,7 @@ class Backup {
                 "isUploading" => $this->isUploading
             ));
         }
-        file_put_contents($infoFile, $json);
+        return $json;
     }
 
     public static function fromJson($obj): Backup {
