@@ -14,7 +14,7 @@ if ($id == null) {
 $file = $_REQUEST["file"];
 if ($file == null) {
     header('Content-type: application/json');
-    exit(errorJson("Missing argument 'file', you can request information.php?id=xxx to get the file name"));
+    exit(errorJson("Missing argument 'file', you can request query.php?id=xxx to get the file name"));
 }
 $path = getBackupPath() . $id . "/" . $file;
 if (file_exists($path)) {

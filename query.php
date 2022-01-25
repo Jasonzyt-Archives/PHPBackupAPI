@@ -26,7 +26,9 @@ $backup = getBackup($id);
 if ($backup == null) {
     exit(errorJson("Backup '$id' is not found!"));
 }
+$path = getBackupPath() . $backup->id;
 exit(json_encode([
     "success" => true,
-    "backup" => json_decode($backup->toJson())
-]));
+    "backup" => array_merge(json_decode($backup->toJson(), true),
+        ["files" => getFilesOfDirectory($path, strlen($path) + 1)])
+], JSON_UNESCAPED_SLASHES));

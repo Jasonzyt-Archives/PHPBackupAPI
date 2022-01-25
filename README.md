@@ -7,8 +7,10 @@
 ## Config
 > [`config.php`](config.php): 
 > Config file
-- accessKey: A key to confirm whether the client has access
-- backupPath: The path that you want to use to save uploaded(backup) files
+
+Before using, please edit this file.  
+There are some default values, you can change them.  
+But you must change `$accessKey`, it is a key to access the API.
 
 ## APIs
 ### Create
@@ -27,7 +29,7 @@
   - `success`: If create successfully
   - `reason`: If `success` is `false`, this will save the reason of the error
 
-Example: 
+**Example**: 
 ```
 Request: 
 create.php?key=2333&info={"totalFiles":10,"others":{"name":"test"}}
@@ -39,10 +41,12 @@ Response:
 
 ### Finish
 
-### Info
+### Query
 
 ### Delete
 
 ### Download
 
 ### DownloadZip
+
+### Info

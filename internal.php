@@ -29,6 +29,11 @@ function getIgnoredFiles(): array {
     return $ignoredFiles;
 }
 
+function getAPIVersion(): string {
+    global $apiVersion;
+    return $apiVersion;
+}
+
 function getAccessKey(): string {
     global $accessKey;
     return $accessKey;
@@ -157,10 +162,6 @@ function fnmatchReal($pattern, $string): bool {
     }
 }
 
-function getFileName($path): string {
-    return substr($path, strlen(dirname($path)) + 1);
-}
-
 function loadBackupList(): array {
     $result = array();
     $folders = glob(getBackupPath() . "*", GLOB_ONLYDIR);
@@ -182,6 +183,11 @@ function loadBackupList(): array {
                 }
             }
             $backup->size = getSizeOfDirectory($folder);
+            $tFiles = getTotalFilesOfDirectory($folder);
+            if ($tFiles != $backup->totalFiles) {
+                $backup->totalFiles = $tFiles;
+                $backup->save();
+            }
             $result[$backup->id] = $backup;
         }
     }
@@ -204,7 +210,7 @@ function deleteDirectory($path) {
 
 function isIgnoredFile($fn): bool {
     foreach (getIgnoredFiles() as $ignoredFile) {
-        if (fnmatchReal($ignoredFile, getFileName($fn))) {
+        if (fnmatchReal($ignoredFile, basename($fn))) {
             return true;
         }
     }
@@ -245,6 +251,24 @@ function getTotalFilesOfDirectory($path): int {
         }
     }
     return $total;
+}
+
+function getFilesOfDirectory($path, $base): array {
+    $result = array();
+    if (is_dir($path)) {
+        $files = glob($path . '/*');
+        foreach ($files as $file) {
+            if (isIgnoredFile($file)) {
+                continue;
+            }
+            if (is_dir($file)) {
+                $result = array_merge($result, getFilesOfDirectory($file, $base));
+            } else {
+                $result[] = substr($file, $base);
+            }
+        }
+    }
+    return $result;
 }
 
 function errorJson($str): string {
