@@ -24,5 +24,5 @@ exit(json_encode([
     "success" => true,
     "id" => $id,
     "size" => $backup->size,
-    "totalFiles" => $backup->totalFiles
+    "uploadedFiles" => $backup->totalFiles
 ]));

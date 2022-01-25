@@ -18,35 +18,181 @@ But you must change `$accessKey`, it is a key to access the API.
 > Create a new backup
 - Request: `GET/POST`
 - Arguments
-  - `key`: Access key
-  - `info`: The basic information of the backup(JSON)
-    - `totalFiles`: The number of the files you will upload  
+  - `<key: string>`: Access key
+  - `[info: string(JSON object)]`: The basic information of the backup(JSON)
+    - `[totalFiles: int]`: The number of the files you will upload  
       If this is `0` or not set, you must request [`Finish`](#Finish) after uploading
-    - `others`: Other things you want to store on the server
+    - `[others: object]`: Other things you want to store on the server
 - Response `JSON`
-  - `id`: The ID of the new backup
-  - `timeStamp`: The creation time of the new backup
-  - `success`: If create successfully
-  - `reason`: If `success` is `false`, this will save the reason of the error
+  - `<id: string>`: The ID of the new backup. You must use this ID to [`Upload`](#Upload) & [`Finish`](#Finish)
+  - `<timeStamp: int>`: The creation time of the new backup
+  - `<success: bool>`: Whether the request is successful
+  - `[reason: string]`: If `success` is `false`, this will save the reason of the error
 
 **Example**: 
 ```
-Request: 
+Request[GET]:
 create.php?key=2333&info={"totalFiles":10,"others":{"name":"test"}}
 Response:
-{"success":true,"id":"2022012413_25cf29","timeStamp":1643029329}
+{"success":true,"id":"2022012421_42604b","timeStamp":1643029329}
 ```
 
 ### Upload
+> [`upload.php`](upload.php): 
+> Upload a file to the backup
+- Request: `POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `<id: string>`: The ID of the backup
+  - `<file: object>`: The file you want to upload
+- Response `JSON`
+  - `<id: string>`: The ID of the backup
+  - `<uploadedFiles: int>`: The number of the uploaded files
+  - `[totalFiles: int]`: The number of the files you will upload
+  - `[done: bool]`:
+  - `<success: bool>`: Whether the request is successful
+  - `[reason: bool]`: If `success` is `false`, this will save the reason of the error
+
+**Example**:
+```
+Request[POST]:
+upload.php
+{{"key", "2333"}, {"id", "2022012421_42604b"}, {"file", "content", "test.txt", "text/plain"}}
+Response[1]:
+{"success":true,"id":"2022012421_42604b","uploadedFiles":1,"totalFiles":10,"done":false}
+Response[2]:
+{"success":true,"id":"2022012421_42604b","uploadedFiles":2}
+```
 
 ### Finish
+> [`finish.php`](finish.php): 
+> Finish uploading a backup
+- Request: `GET/POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `<id: string>`: The ID of the backup
+- Response `JSON`
+  - `<id: string>`: The ID of the backup
+  - `<size: int>`: The size of the backup(bytes)
+  - `<uploadedFiles: int>`: The number of the uploaded files
+  - `<success: bool>`: Whether the request is successful
+  - `[reason: string]`: If `success` is `false`, this will save the reason of the error
+  
+**Example**: 
+```
+Request[GET]:
+finish.php?key=2333&id=2022012421_42604b
+Response:
+{"success":true,"id":"2022012421_42604b","size":114514,"uploadedFiles":10}
+```
+
+**Note**:
+[`$timeLimit`](config.php#L10) [`$deleteAfterTimeLimitExceeded`](config.php#L13)
 
 ### Query
+> [`query.php`](query.php): 
+> Query the information of a backup
+- Request: `GET/POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `[id: string]`: The ID of the backup
+- Response `JSON`
+  - `[backup: object]`: The backup information
+  - `[list: array]`: The list of all the backups
+  - `[count: int]`: The number of the backups
+  - `<success: bool>`: Whether the request is successful
+  - `[reason: string]`: If `success` is `false`, this will save the reason of the error
+
+**Example**: 
+```
+Request[GET][1]:
+query.php?key=2333
+Response[1]:
+{"success":true,"count":1,"list":[{"id":"2022012421_42604b","timeStamp":1643030721,"others":null,"totalFiles":3,"isUploading":false}]}
+
+Request[GET][2]:
+query.php?key=2333&id=2022012421_42604b
+Response[2]:
+{"success":true,"backup":{"id":"2022012421_42604b","timeStamp":1643030721,"others":null,"totalFiles":3,"isUploading":false,"files":["qwd.log","wow/test.txt","wow/woc/114514.txt"]}}
+```
 
 ### Delete
+> [`delete.php`](delete.php): 
+> Delete a backup
+- Request: `GET/POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `<id: string>`: The ID of the backup
+- Response `JSON`
+  - `<id: string>`: The ID of the backup 
+  - `<success: bool>`: Whether the request is successful
+  - `[reason: string]`: If `success` is `false`, this will save the reason of the error
+
+**Example**: 
+```
+Request[GET]:
+delete.php?key=2333&id=2022012421_42604b
+Response:
+{"success":true,"id":"2022012421_42604b"}
+```
 
 ### Download
+> [`download.php`](download.php): 
+> Download a file of the backup
+- Request: `GET/POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `<id: string>`: The ID of the backup
+  - `<file: string>`: The name of the file
+- Response[1] `octet-stream`: The file
+- Response[2] `JSON`:
+  - `<success: bool>`: Always `false`
+  - `<reason: string>`:  The reason of the error
+
+**Example**: 
+```
+Request[GET]:
+download.php?key=2333&id=2022012421_42604b&file=qwd.log
+Response:
+{FILE CONTENT}
+```
+
+**Note**:  
+You can get the filename by [`Query`](#Query)
 
 ### DownloadZip
+> [`downloadZip.php`](downloadZip.php): 
+> Download the backup as a zip file
+- Request: `GET/POST`
+- Arguments
+  - `<key: string>`: Access key
+  - `<id: string>`: The ID of the backup
+- Response[1] `zip`: The zip file
+- Response[2] `JSON`:
+  - `<success: bool>`: Always `false`
+  - `<reason: string>`:  The reason of the error
+
+**Example**: 
+```
+Request[GET]:
+downloadZip.php?key=2333&id=2022012421_42604b
+Response:
+{FILE CONTENT}
+```
 
 ### Info
+> [`info.php`](info.php): 
+> Get the information of APIs
+- Request: `GET/POST`
+- Arguments: None
+- Response `JSON`:
+  - `<success: bool>`: Always `true`
+  - `<apiVersion: string>`: The API version
+
+**Example**: 
+```
+Request[GET]:
+info.php
+Response:
+{"success":true,"apiVersion":"0.1.0"}
+```
