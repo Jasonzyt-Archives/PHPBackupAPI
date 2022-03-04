@@ -4,9 +4,9 @@ include "internal.php";
 
 // Set header
 header("Content-Type: application/json");
-// Check key
-if (!checkKey($_REQUEST["key"] ?? null)) {
-    exit(errorJson("The key is wrong!"));
+// Check permission
+if (!checkPermission("query")) {
+    exit(errorJson("Permission denied"));
 }
 // Process argument
 $id = $_REQUEST["id"] ?? null;

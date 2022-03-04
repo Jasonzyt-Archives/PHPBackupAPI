@@ -1,7 +1,7 @@
 <?php
-// 请确保此处Key与客户端填写的一致
-// Please make sure the key is the same as the one in the client
-$accessKey = "key";
+// 此配置已弃用, 请使用$permissions
+// Deprecated. Please use $permissions
+//$accessKey = "key";
 // 上传的备份的保存目录
 // The directory to store the backup
 $backupPath = "Backups/";
@@ -20,9 +20,26 @@ $maxFileSize = 0;
 // 时区, 请参考此文档https://www.php.net/manual/zh/timezones.php
 // Time zone, please refer to this document https://www.php.net/manual/zh/timezones.php
 $timeZone = "Asia/Shanghai";
-// 访问下载API是否需要AccessKey
-// Whether to access the download API requires AccessKey
-$allowDownloadWithoutAccessKey = false;
-// 是否允许下载zip
-// Whether to allow download zip
-$allowDownloadZip = true;
+// 此配置已弃用, 请使用$permissions
+// Deprecated. Please use $permissions
+//$allowDownloadWithoutAccessKey = false;
+// 此配置已弃用, 请使用$permissions
+// Deprecated. Please use $permissions
+//$allowDownloadZip = true;
+// 权限
+// Permissions
+$permissions = [
+    "" => [ // if no key provided in request header
+        "info" => true,
+    ],
+    "key" => [
+        "create" => true,
+        "delete" => true,
+        "download" => true,
+        "downloadZip" => true,
+        "finish" => true,
+        "info" => true,
+        "query" => true,
+        "upload" => true,
+    ]
+];

@@ -2,9 +2,9 @@
 
 include "internal.php";
 
-if (isAllowDownloadWithoutAccessKey() && !checkKey($_REQUEST["key"] ?? null)) {
+if (checkPermission("download")) {
     header('Content-type: application/json');
-    exit(errorJson("The key is wrong"));
+    exit(errorJson("Permission denied"));
 }
 $id = $_REQUEST["id"];
 if ($id == null) {

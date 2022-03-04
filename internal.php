@@ -34,11 +34,6 @@ function getAPIVersion(): string {
     return $apiVersion;
 }
 
-function getAccessKey(): string {
-    global $accessKey;
-    return $accessKey;
-}
-
 function getBackupPath(): string {
     global $backupPath;
     return $backupPath;
@@ -69,14 +64,9 @@ function getTimeZone(): string {
     return $timeZone;
 }
 
-function isAllowDownloadWithoutAccessKey(): bool {
-    global $allowDownloadWithoutAccessKey;
-    return $allowDownloadWithoutAccessKey;
-}
-
-function isAllowDownloadZip(): bool {
-    global $allowDownloadZip;
-    return $allowDownloadZip;
+function getPermissions(): array {
+    global $permissions;
+    return $permissions;
 }
 
 ///////////////////////////////////// VARS //////////////////////////////////////
@@ -90,8 +80,15 @@ function getBackups(): ?array {
 
 ///////////////////////////////////// UTILS /////////////////////////////////////
 
-function checkKey($k): bool {
-    return $k == getAccessKey();
+function checkPermission($module): bool {
+    $key = http_get_request_headers()["Authorization"] ?: "";
+    $perm = getPermissions();
+    if ($perm[$key] != null) {
+        if ($perm[$key][$module] === true) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function generateBackupID(): string {
