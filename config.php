@@ -1,7 +1,4 @@
 <?php
-// 此配置已弃用, 请使用$permissions
-// Deprecated. Please use $permissions
-//$accessKey = "key";
 // 上传的备份的保存目录
 // The directory to store the backup
 $backupPath = "Backups/";
@@ -20,16 +17,10 @@ $maxFileSize = 0;
 // 时区, 请参考此文档https://www.php.net/manual/zh/timezones.php
 // Time zone, please refer to this document https://www.php.net/manual/zh/timezones.php
 $timeZone = "Asia/Shanghai";
-// 此配置已弃用, 请使用$permissions
-// Deprecated. Please use $permissions
-//$allowDownloadWithoutAccessKey = false;
-// 此配置已弃用, 请使用$permissions
-// Deprecated. Please use $permissions
-//$allowDownloadZip = true;
 // 权限
 // Permissions
 $permissions = [
-    "" => [ // if no key provided in request header
+    "" => [ // If no key provided in request header
         "info" => true,
     ],
     "key" => [

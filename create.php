@@ -10,10 +10,9 @@ if (!checkPermission("create")) {
 }
 // Process backup information
 $backup = null;
-$infoStr = $_REQUEST["info"] ?? "{}";
-$info = json_decode($infoStr) ?? array();
-$totalFiles = $info->totalFiles ?? 0;
-$backup = Backup::create($totalFiles, $info->others ?? null);
+$totalFiles = $_REQUEST["totalFiles"] ?: 0;
+$others = json_decode($_REQUEST["others"]);
+$backup = Backup::create($totalFiles, $others);
 exit(json_encode([
     "success" => true,
     "id" => $backup->id,
